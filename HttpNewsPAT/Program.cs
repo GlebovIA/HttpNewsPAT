@@ -1,79 +1,103 @@
 ﻿using HtmlAgilityPack;
 using System;
-using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Net;
-using System.Text;
+using System.Net.Http;
+using System.Threading.Tasks;
 
 namespace HttpNewsPAT
 {
     internal class Program
     {
-        static void Main(string[] args)
+        private static HttpClient httpClient = new HttpClient();
+
+        static async Task Main(string[] args)
         {
             Debug.Listeners.Add(new TextWriterTraceListener("log.txt"));
-            SingIn("user", "user");
+            await SignIn("user", "user");
             Console.Read();
         }
-        public static void SingIn(string Login, string Password)
+
+        public static async Task SignIn(string login, string password)
         {
             string url = "http://127.0.0.1/ajax/login.php";
             WriteLog($"Выполняем запрос: {url}");
-            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
-            request.Method = "POST";
-            request.ContentType = "application/x-www-form-urlencoded";
-            request.CookieContainer = new CookieContainer();
-            string postData = $"login={Login}&password={Password}";
-            byte[] Data = Encoding.ASCII.GetBytes(postData);
-            request.ContentLength = Data.Length;
-            using (var stream = request.GetRequestStream())
+
+            var postData = new FormUrlEncodedContent(new[]
             {
-                stream.Write(Data, 0, Data.Length);
+                new KeyValuePair<string, string>("login", login),
+                new KeyValuePair<string, string>("password", password)
+            });
+
+            HttpResponseMessage response = await httpClient.PostAsync(url, postData);
+            WriteLog($"Статус выполнения: {response.StatusCode}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                string cookies = response.Headers.GetValues("Set-Cookie").FirstOrDefault();
+                if (!string.IsNullOrEmpty(cookies))
+                {
+                    string token = cookies.Split(';')[0].Split('=')[1];
+                    Console.WriteLine("Печенька: токен = " + token);
+
+                    string content = await GetContentAsync(token);
+                    ParsingHtml(content);
+                }
             }
-            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
-            WriteLog($"Статус выполннения: {response.StatusCode}");
-            string responseFromServer = "Печенька: токен = " + response.Cookies[0].Value.ToString();
-            Console.WriteLine(responseFromServer);
-            string Content = GetContent(new Cookie("token", response.Cookies[0].Value.ToString(), "/", "127.0.0.1"));
-            ParsingHtml(Content);
+            else
+            {
+                Console.WriteLine($"Ошибка выполнения запроса: {response.StatusCode}");
+            }
         }
-        public static string GetContent(Cookie Token)
+
+        public static async Task<string> GetContentAsync(string token)
         {
             string url = "http://127.0.0.1/main";
             WriteLog($"Выполняем запрос: {url}");
-            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
-            request.CookieContainer = new CookieContainer();
-            request.CookieContainer.Add(Token);
-            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
-            WriteLog($"Статус выполннения: {response.StatusCode}");
-            string responseFromServer = new StreamReader(response.GetResponseStream()).ReadToEnd();
-            return responseFromServer;
+            httpClient.DefaultRequestHeaders.Add("token", token);
+
+            HttpResponseMessage response = await httpClient.GetAsync(url);
+            WriteLog($"Статус выполнения: {response.StatusCode}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadAsStringAsync();
+            }
+            else
+            {
+                Console.WriteLine($"Ошибка выполнения запроса: {response.StatusCode}");
+                return string.Empty;
+            }
         }
+
         public static void ParsingHtml(string htmlCode)
         {
-            string content = "";
-            var html = new HtmlDocument();
+            HtmlDocument html = new HtmlDocument();
             html.LoadHtml(htmlCode);
-            var Document = html.DocumentNode;
-            IEnumerable DivsNews = Document.Descendants(0).Where(n => n.HasClass("news"));
-            foreach (HtmlNode DivNews in DivsNews)
+            HtmlNode document = html.DocumentNode;
+            IEnumerable<HtmlNode> divsNews = document.Descendants().Where(n => n.HasClass("news"));
+
+            string content = "";
+            foreach (HtmlNode divNews in divsNews)
             {
-                var src = DivNews.ChildNodes[1].GetAttributeValue("src", "none");
-                var name = DivNews.ChildNodes[3].InnerText;
-                var description = DivNews.ChildNodes[5].InnerText;
-                content += name + "\n" + "Изображение: " + src + "\n" + "Описание: " + description + "\n";
+                string src = divNews.ChildNodes[1].GetAttributeValue("src", "none");
+                string name = divNews.ChildNodes[3].InnerText;
+                string description = divNews.ChildNodes[5].InnerText;
+
+                content += $"{name}\nИзображение: {src}\nОписание: {description}\n";
             }
+
             Console.Write(content);
             WriteToFile(content);
         }
+
         public static void WriteToFile(string content)
         {
-            StreamWriter writer = new StreamWriter(Environment.CurrentDirectory + "/parsedfile.txt");
-            writer.Write(content);
-            writer.Close();
+            File.WriteAllText(Path.Combine(Environment.CurrentDirectory, "parsedfile.txt"), content);
         }
+
         public static void WriteLog(string debugContent)
         {
             Debug.WriteLine(debugContent);
