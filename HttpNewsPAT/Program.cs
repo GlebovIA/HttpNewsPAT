@@ -143,7 +143,7 @@ namespace HttpNewsPAT
             WriteToFile(content);
         }
 
-        public static void AddNew()
+        public static async void AddNew()
         {
             if (!string.IsNullOrEmpty(Token))
             {
@@ -159,7 +159,30 @@ namespace HttpNewsPAT
                 Console.ForegroundColor = ConsoleColor.White;
                 Console.WriteLine("Укажите адрес картинки");
                 image = Console.ReadLine();
-                DataBase.AddNew(name, description, image);
+
+                string url = "http://127.0.0.1/ajax/add.php";
+                WriteLog($"Выполняем запрос: {url}");
+
+                var postData = new FormUrlEncodedContent(new[]
+                {
+                    new KeyValuePair<string, string>("name", name),
+                    new KeyValuePair<string, string>("description", description),
+                    new KeyValuePair<string, string>("src", image),
+                    new KeyValuePair<string, string>("token", Token)
+                });
+
+                HttpResponseMessage response = await httpClient.PostAsync(url, postData);
+                WriteLog($"Статус выполнения: {response.StatusCode}");
+                if (response.IsSuccessStatusCode)
+                {
+                    Console.ForegroundColor = ConsoleColor.White;
+                    Console.WriteLine($"Запрос выполнен успешно");
+                }
+                else
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"Ошибка выполнения запроса: {response.StatusCode}");
+                }
             }
             else
             {
