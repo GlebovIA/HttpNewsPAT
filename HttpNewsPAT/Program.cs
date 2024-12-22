@@ -13,13 +13,14 @@ namespace HttpNewsPAT
     {
         static void Main(string[] args)
         {
+            Debug.Listeners.Add(new TextWriterTraceListener("log.txt"));
             SingIn("user", "user");
             Console.Read();
         }
         public static void SingIn(string Login, string Password)
         {
             string url = "http://127.0.0.1/ajax/login.php";
-            Debug.WriteLine($"Выполняем запрос: {url}");
+            WriteLog($"Выполняем запрос: {url}");
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
             request.Method = "POST";
             request.ContentType = "application/x-www-form-urlencoded";
@@ -32,7 +33,7 @@ namespace HttpNewsPAT
                 stream.Write(Data, 0, Data.Length);
             }
             HttpWebResponse response = (HttpWebResponse)request.GetResponse();
-            Debug.WriteLine($"Статус выполннения: {response.StatusCode}");
+            WriteLog($"Статус выполннения: {response.StatusCode}");
             string responseFromServer = "Печенька: токен = " + response.Cookies[0].Value.ToString();
             Console.WriteLine(responseFromServer);
             string Content = GetContent(new Cookie("token", response.Cookies[0].Value.ToString(), "/", "127.0.0.1"));
@@ -41,12 +42,12 @@ namespace HttpNewsPAT
         public static string GetContent(Cookie Token)
         {
             string url = "http://127.0.0.1/main";
-            Debug.WriteLine($"Выполняем запрос: {url}");
+            WriteLog($"Выполняем запрос: {url}");
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
             request.CookieContainer = new CookieContainer();
             request.CookieContainer.Add(Token);
             HttpWebResponse response = (HttpWebResponse)request.GetResponse();
-            Debug.WriteLine($"Статус выполннения: {response.StatusCode}");
+            WriteLog($"Статус выполннения: {response.StatusCode}");
             string responseFromServer = new StreamReader(response.GetResponseStream()).ReadToEnd();
             return responseFromServer;
         }
@@ -72,6 +73,11 @@ namespace HttpNewsPAT
             StreamWriter writer = new StreamWriter(Environment.CurrentDirectory + "/parsedfile.txt");
             writer.Write(content);
             writer.Close();
+        }
+        public static void WriteLog(string debugContent)
+        {
+            Debug.WriteLine(debugContent);
+            Debug.Flush();
         }
     }
 }
