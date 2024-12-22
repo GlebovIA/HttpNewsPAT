@@ -1,6 +1,9 @@
-﻿using System;
+﻿using HtmlAgilityPack;
+using System;
+using System.Collections;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Text;
 
@@ -32,7 +35,8 @@ namespace HttpNewsPAT
             Debug.WriteLine($"Статус выполннения: {response.StatusCode}");
             string responseFromServer = "Печенька: токен = " + response.Cookies[0].Value.ToString();
             Console.WriteLine(responseFromServer);
-            Console.WriteLine(GetContent(new Cookie("token", response.Cookies[0].Value.ToString(), "/", "127.0.0.1")));
+            string Content = GetContent(new Cookie("token", response.Cookies[0].Value.ToString(), "/", "127.0.0.1"));
+            ParsingHtml(Content);
         }
         public static string GetContent(Cookie Token)
         {
@@ -44,8 +48,30 @@ namespace HttpNewsPAT
             HttpWebResponse response = (HttpWebResponse)request.GetResponse();
             Debug.WriteLine($"Статус выполннения: {response.StatusCode}");
             string responseFromServer = new StreamReader(response.GetResponseStream()).ReadToEnd();
-            Console.WriteLine(responseFromServer);
             return responseFromServer;
+        }
+        public static void ParsingHtml(string htmlCode)
+        {
+            string content = "";
+            var html = new HtmlDocument();
+            html.LoadHtml(htmlCode);
+            var Document = html.DocumentNode;
+            IEnumerable DivsNews = Document.Descendants(0).Where(n => n.HasClass("news"));
+            foreach (HtmlNode DivNews in DivsNews)
+            {
+                var src = DivNews.ChildNodes[1].GetAttributeValue("src", "none");
+                var name = DivNews.ChildNodes[3].InnerText;
+                var description = DivNews.ChildNodes[5].InnerText;
+                content += name + "\n" + "Изображение: " + src + "\n" + "Описание: " + description + "\n";
+            }
+            Console.Write(content);
+            WriteToFile(content);
+        }
+        public static void WriteToFile(string content)
+        {
+            StreamWriter writer = new StreamWriter(Environment.CurrentDirectory + "/parsedfile.txt");
+            writer.Write(content);
+            writer.Close();
         }
     }
 }
